@@ -21,10 +21,12 @@
 package org.apache.hadoop.hbase.io.hfile.bucket;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
@@ -174,13 +176,13 @@ public final class BucketAllocator {
   final class BucketSizeInfo {
     // Free bucket means it has space to allocate a block;
     // Completely free bucket means it has no block.
-    private List<Bucket> bucketList, freeBuckets, completelyFreeBuckets;
+    private Set<Bucket> bucketList, freeBuckets, completelyFreeBuckets;
     private int sizeIndex;
 
     BucketSizeInfo(int sizeIndex) {
-      bucketList = new LinkedList<Bucket>();
-      freeBuckets = new LinkedList<Bucket>();
-      completelyFreeBuckets = new LinkedList<Bucket>();
+      bucketList = new HashSet<Bucket>();
+      freeBuckets = new HashSet<Bucket>();
+      completelyFreeBuckets = new HashSet<Bucket>();
       this.sizeIndex = sizeIndex;
     }
 
@@ -202,8 +204,10 @@ public final class BucketAllocator {
      */
     public long allocateBlock() {
       Bucket b = null;
-      if (freeBuckets.size() > 0) // Use up an existing one first...
-        b = freeBuckets.get(freeBuckets.size() - 1);
+      if (freeBuckets.size() > 0) {
+        // Use up an existing one first...
+        b = freeBuckets.iterator().next();
+      }
       if (b == null) {
         b = grabGlobalCompletelyFreeBucket();
         if (b != null) instantiateBucket(b);
@@ -228,7 +232,7 @@ public final class BucketAllocator {
       }
 
       if (completelyFreeBuckets.size() > 0) {
-        b = completelyFreeBuckets.get(0);
+        b = completelyFreeBuckets.iterator().next();
         removeBucket(b);
       }
       return b;
