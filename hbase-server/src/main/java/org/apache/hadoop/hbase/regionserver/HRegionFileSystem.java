@@ -48,8 +48,10 @@ import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.backup.HFileArchiver;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.io.Reference;
+import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSHDFSUtils;
+import org.apache.hadoop.hbase.util.FSTableDescriptors;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.ServerRegionReplicaUtil;
 
@@ -604,7 +606,8 @@ public class HRegionFileSystem {
       }
     }
 
-    f.closeReader(true);
+    f.closeReader(conf.getBoolean(CacheConfig.EVICT_BLOCKS_ON_CLOSE_KEY,
+      CacheConfig.DEFAULT_EVICT_ON_CLOSE));
 
     Path splitDir = new Path(getSplitsDir(hri), familyName);
     // A reference to the bottom half of the hsf store file.
