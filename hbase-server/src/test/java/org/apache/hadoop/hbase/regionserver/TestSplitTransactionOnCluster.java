@@ -1283,7 +1283,8 @@ public class TestSplitTransactionOnCluster {
       assertEquals(storefiles.size(), 1);
       assertFalse(region.hasReferences());
       Path referencePath = region.getRegionFileSystem().splitStoreFile(region.getRegionInfo(), "f",
-        storefiles.iterator().next(), Bytes.toBytes("row1"), false, region.getSplitPolicy());
+        storefiles.iterator().next(), Bytes.toBytes("row1"), false, region.getSplitPolicy(), 
+        null);
       assertNotNull(referencePath);
     } finally {
       TESTING_UTIL.deleteTable(tableName);
