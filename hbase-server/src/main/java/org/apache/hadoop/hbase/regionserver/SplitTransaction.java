@@ -38,12 +38,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.coordination.BaseCoordinatedStateManager;
 import org.apache.hadoop.hbase.coordination.SplitTransactionCoordination;
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.RegionStateTransition.TransitionCode;
@@ -51,6 +53,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.CancelableProgressable;
 import org.apache.hadoop.hbase.util.ConfigUtil;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.FSTableDescriptors;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.HasThread;
 import org.apache.hadoop.hbase.util.Pair;
@@ -723,10 +726,12 @@ public class SplitTransaction {
       (ThreadPoolExecutor) Executors.newFixedThreadPool(nbFiles, factory);
     List<Future<Pair<Path,Path>>> futures = new ArrayList<Future<Pair<Path,Path>>> (nbFiles);
 
+    FSTableDescriptors tableDescs = new FSTableDescriptors(parent.getBaseConf());
+    HTableDescriptor desc = tableDescs.get(parent.getRegionInfo().getTable());
     // Split each store file.
     for (Map.Entry<byte[], List<StoreFile>> entry: hstoreFilesToSplit.entrySet()) {
       for (StoreFile sf: entry.getValue()) {
-        StoreFileSplitter sfs = new StoreFileSplitter(entry.getKey(), sf);
+        StoreFileSplitter sfs = new StoreFileSplitter(entry.getKey(), sf, desc);
         futures.add(threadPool.submit(sfs));
       }
     }
@@ -772,16 +777,18 @@ public class SplitTransaction {
     return new Pair<Integer, Integer>(created_a, created_b);
   }
 
-  private Pair<Path, Path> splitStoreFile(final byte[] family, final StoreFile sf) throws IOException {
+  private Pair<Path, Path> splitStoreFile(final byte[] family, final StoreFile sf,
+    final CacheConfig cacheConf) 
+      throws IOException {
     HRegionFileSystem fs = this.parent.getRegionFileSystem();
     String familyName = Bytes.toString(family);
 
     Path path_a =
         fs.splitStoreFile(this.hri_a, familyName, sf, this.splitrow, false,
-          this.parent.getSplitPolicy());
+          this.parent.getSplitPolicy(), cacheConf);
     Path path_b =
         fs.splitStoreFile(this.hri_b, familyName, sf, this.splitrow, true,
-          this.parent.getSplitPolicy());
+          this.parent.getSplitPolicy(), cacheConf);
     return new Pair<Path,Path>(path_a, path_b);
   }
 
@@ -792,19 +799,23 @@ public class SplitTransaction {
   class StoreFileSplitter implements Callable<Pair<Path,Path>> {
     private final byte[] family;
     private final StoreFile sf;
+    private final HTableDescriptor desc;
 
     /**
      * Constructor that takes what it needs to split
      * @param family Family that contains the store file
      * @param sf which file
      */
-    public StoreFileSplitter(final byte[] family, final StoreFile sf) {
+    public StoreFileSplitter(final byte[] family, final StoreFile sf, HTableDescriptor desc) {
       this.sf = sf;
       this.family = family;
+      this.desc = desc;
     }
 
     public Pair<Path,Path> call() throws IOException {
-      return splitStoreFile(family, sf);
+      CacheConfig cacheConf = desc == null ? new CacheConfig(parent.getBaseConf())
+          : new CacheConfig(parent.getBaseConf(), desc.getFamily(family));
+      return splitStoreFile(family, sf, cacheConf);
     }
   }
 
