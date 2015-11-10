@@ -578,7 +578,7 @@ public class HRegionFileSystem {
    * @throws IOException
    */
   Path splitStoreFile(final HRegionInfo hri, final String familyName, final StoreFile f,
-      final byte[] splitRow, final boolean top, RegionSplitPolicy splitPolicy) throws IOException {
+      final byte[] splitRow, final boolean top, RegionSplitPolicy splitPolicy,CacheConfig cacheConf) throws IOException {
 
     if (splitPolicy == null || !splitPolicy.skipStoreFileRangeCheck()) {
       // Check whether the split row lies in the range of the store file
@@ -606,8 +606,7 @@ public class HRegionFileSystem {
       }
     }
 
-    f.closeReader(conf.getBoolean(CacheConfig.EVICT_BLOCKS_ON_CLOSE_KEY,
-      CacheConfig.DEFAULT_EVICT_ON_CLOSE));
+    f.closeReader(cacheConf != null? cacheConf.shouldEvictOnClose(): true);
 
     Path splitDir = new Path(getSplitsDir(hri), familyName);
     // A reference to the bottom half of the hsf store file.
